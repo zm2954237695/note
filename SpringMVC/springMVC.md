@@ -8,6 +8,19 @@ mvc是一种软件架构思想，将软件按照模型、视图、控制器来�
 
 控制器:指工程中的servlet，作用是接收请求和响应浏览器。
 
+##### SpringMVC
+
+客户端发起请求，服务端接受请求，执行逻辑并进行视图跳转。
+
+开发步骤:
+
+1. 导入SpringMVC相关坐标。
+2. 配置SpringMVC核心控制器DispathcerServlet
+3. 创建Controller类和视图页面。
+4. 使用注解配置Controller类中业务方法的映射地址。
+5. 配置SpringMVC核心文件Spring-mvc.xml
+6. 客户端发起请求测试
+
 
 
 ## 一、重定向与转发的区别
@@ -181,6 +194,25 @@ public String HelloWorld() {
 ### 7、总结
 
 浏览器发送请求，若请求地址符合前端控制器的url-pattern，该请求就会被前端控制器DispatcherServlet处理。前端控制器会读取SpringMVC的核心配置文件，通过扫描组件找到控制器，将请求地址和控制器中@RequestMapping注解的value属性值进行匹配，若匹配成功，该注解所标识的控制器方法就是处理请求的方法。处理请求的方法需要返回一个字符串类型的视图名称，该视图名称会被视图解析器解析，加上前缀和后缀组成视图的路径，通过Thymeleaf对视图进行渲染，最终转发到视图所对应页面
+
+
+
+![image-20211203162537846](C:\Users\逐梦\AppData\Roaming\Typora\typora-user-images\image-20211203162537846.png)
+
+执行流程如下：
+
+1. 用户发送请求至前端控制器DispatcherServlet.
+2. DispatcherServlet收到请求调用HandlerMapping处理器映射器。
+3. 处理器映射器找到具体的处理器(根据xml配置或者注解进行查找),生成处理器对象及处理器拦截器(如果有则生成)一并返回给DispatcherServlet.
+4. DispatcherServlet调用HandlerAdapter处理器适配器。
+5. HandlerAdapter经过适配调用具体的处理器(Controller,也叫后端控制器).
+6. Controller执行完成后返回ModelAndView
+7. HandlerAdapter将controller执行结果ModelAndView返回给DispatcherServlet.
+8. DispatcherServlet将ModelAndView传给ViewReslover视图解析器。
+9. ViewReslover解析后返回具体View.
+10. DispatcherServlet根据View进行渲染视图(即将模型数据填充至视图中)。DispatcherServlet响应用户。
+
+
 
 # 三、@RequestMapping注解
 
@@ -398,3 +430,127 @@ required：设置是否必须传输此请求参数，默认值为true
 若设置为true时，则当前请求必须传输value所指定的请求参数，若没有传输该请求参数，且没有设置defaultValue属性，则页面报错400：Required String parameter ‘xxx’ is not present；若设置为false，则当前请求不是必须传输value所指定的请求参数，若没有传输，则注解所标识的形参的值为null
 
 defaultValue：不管required属性值为true或false，当value所指定的请求参数没有传输或传输的值为""时，则使用默认值为形参赋值
+
+#### SpringMVC的数据响应方式
+
+1）页面跳转
+
+- 直接返回字符串
+
+   此种方式会将返回的字符串与视图解析器的前后缀拼接后跳转。
+
+- 通过ModelAndView对象返回
+
+  - 先实例ModelAndView对象
+  - 通过addObject来设置模型数据
+  - 通过setViewName来设置视图名称。
+
+2）回写数据
+
+- 直接返回字符串
+
+  1. resp为方法的参数
+
+  ​       resp.getWriter().print();
+
+  2. 加上@ResponseBody; 不要进行页面跳转，直接回写数据
+
+​          JSON转换工具
+
+  ```java
+  ObjectMapper objectMapper =new ObjectMapper();
+  String json = objectMapper.writeValueAsString(user);
+  ```
+
+SpringMVC中使用json转换
+
+在配置文件中导入处理器映射器
+
+```xml
+    <bean class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter">
+       <property name="messageConverters">
+           <list>
+               <bean class="org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter"
+           </list>
+       </property>
+    </bean>
+```
+
+也可以直接使用注解开发
+
+在配置文件中加上
+
+````xml
+<mvc:annotation-driven/>
+````
+
+- 返回对象或集合
+
+#### SpringMVC获得请求数据
+
+##### 获得基本类型参数
+
+Controller的业务方法的参数名称要与请求参数的name一致，参数值会自动映射匹配。
+
+
+
+##### 自定义类型转换器
+
+在进行页面请求时，使用restful提交的参数类型可能不是基本数据类型格式，无法直接进行映射，就需要使用自定义类型转换器
+
+***开发步骤***
+
+1. 定义转换类实现Converter接口
+2. 在配置文件中声明转换器
+3. 在<anotatio-driven>中引用转换器
+
+```java
+package com.guo.converter;
+
+import org.springframework.core.convert.converter.Converter;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class DateConverter implements Converter<String, Date> {
+
+    @Override
+    public Date convert(String s) {
+        SimpleDateFormat format = new SimpleDateFormat("yyyyy-MM-dd");
+        Date date=null;
+        try {
+            date = format.parse(s);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+          return date;
+
+    }
+}
+
+```
+
+#### 文件上传
+
+##### 1.文件上传三要素
+
+- 表单项type="file"
+- 表单的提交方式是post
+- 表单的enctype属性是多部分表单形式，即enctype="multipart/form-data"
+
+##### 单文件上传步骤：
+
+1.导入fileupload和io坐标
+
+2.配置文件上传解析器
+
+3.编写文件上传代码
+
+ ```java
+ StringoriginalFilename = uploadFile.getOriginalFilename();
+ uploadFile.transferto(new File("存放在磁盘的位置"));
+ ```
+
+
+
